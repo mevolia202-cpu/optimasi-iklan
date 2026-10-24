@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kalkulator Budget Shopee</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{--bg:#f6f5f2;--sf:#fff;--tx:#1d1d1b;--mu:#6b6b66;--bd:#e0ded8;--ac:#ee4d2d;--in:#fff8d6;--ok:#1a7f4b;--wn:#b26a00;--ng:#c62828;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161615;--sf:#222220;--tx:#f0efea;--mu:#a3a29b;--bd:#3a3a36;--ac:#ff6a4d;--in:#3d3715;--ok:#4cc38a;--wn:#f0b04a;--ng:#ff7b7b;color-scheme:dark}}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.w{max-width:960px;margin:0 auto;padding:16px}
+h1{font-size:20px;margin:4px 0 2px}h2{font-size:15px;margin:0 0 10px;color:var(--ac);letter-spacing:.04em;text-transform:uppercase}
+.sub{color:var(--mu);font-size:13px;margin-bottom:12px}
+.tabs{display:flex;gap:6px;margin:12px 0;overflow-x:auto}
+.tabs button{flex:1;white-space:nowrap;padding:9px 14px;border:1px solid var(--bd);background:var(--sf);color:var(--tx);border-radius:8px;font:inherit;cursor:pointer}
+.tabs button.on{background:var(--ac);border-color:var(--ac);color:#fff;font-weight:600}
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:14px;margin-bottom:14px}
+.row{display:grid;grid-template-columns:1fr 160px;gap:8px 12px;align-items:center;padding:5px 0;border-bottom:1px solid var(--bd)}
+.row:last-child{border:0}.row small{display:block;color:var(--mu);font-size:12px}
+input{width:100%;font:inherit;padding:7px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--in);color:var(--tx);text-align:right}
+input[type=text],input[type=date],input[type=email],input[type=password]{text-align:left}
+.v{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.neg{color:var(--ng)}.pos{color:var(--ok)}
+.sc{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{padding:6px 8px;border-bottom:1px solid var(--bd);text-align:right;white-space:nowrap}
+th{color:var(--mu);font-weight:600;font-size:12px}th:first-child,td:first-child{text-align:left}
+td input{padding:4px 6px;min-width:90px}
+tr.hl td{background:var(--in)}
+.b{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700}
+.b.s{background:var(--ok);color:#fff}.b.p{background:var(--wn);color:#fff}.b.x{background:var(--ng);color:#fff}
+.msg{font-size:13px;margin-top:8px}
+.notes{font-size:13px;color:var(--mu);padding-left:18px;margin:0}
+button.sm{padding:6px 12px;border:1px solid var(--bd);background:var(--sf);color:var(--tx);border-radius:6px;font:inherit;cursor:pointer}
+.hide{display:none}
+@media(max-width:560px){.row{grid-template-columns:1fr 130px}}
+</style>
+</head>
+<body>
+<div class="w">
+<h1>Kalkulator Budget &amp; ROAS Iklan Shopee</h1>
+<div class="sub">Kolom kuning = isi sendiri. Angka lain dihitung otomatis. Data tersimpan di peramban ini.</div>
+<div id="auth"></div>
+<div class="tabs" id="tabs"></div>
+<div id="p0"></div><div id="p1" class="hide"></div><div id="p2" class="hide"></div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const rp=n=>(n<0?"-":"")+"Rp "+Math.abs(Math.round(n||0)).toLocaleString("id-ID");
+const pc=n=>((n||0)*100).toLocaleString("id-ID",{maximumFractionDigits:1})+"%";
+const x2=n=>typeof n==="number"?n.toLocaleString("id-ID",{maximumFractionDigits:2}):n;
+const cl=n=>n<0?"neg":"pos";
+const DEF={harga:85000,hpp:40000,pot:22,pack:500,aff:0,vou:0,scale:4,paket:160000,total:2500000,
+ pos:[["Iklan Shopee (GMV Max / iklan produk)",1100000,"Menjemput traffic pembeli yang sudah niat beli"],["Affiliate dan sample kreator",500000,"Sample ke 5-8 kreator kecil + komisi ekstra"],["Voucher dan diskon toko",350000,"Voucher toko, gratis ongkir, paket diskon (bundle)"],["Foto dan video produk",300000,"Foto model, video 15-30 detik, thumbnail jelas"],["Cadangan",250000,"Untuk menambah produk/variasi yang mulai laku"]],
+ mg:[200000,300000,350000,250000],
+ sim:[2.5,3,4,5,6],
+ trk:Array.from({length:28},(_,i)=>i?{t:"",b:0,c:0,o:0}:{t:"2026-10-26",b:28000,c:1,o:85000})};
+let S;
+try{S=Object.assign({},DEF,JSON.parse(localStorage.getItem("kbs")||"{}"))}catch(e){S=JSON.parse(JSON.stringify(DEF))}
+/* ====== KONFIGURASI SUPABASE: isi dua nilai ini ====== */
+const SB_URL="https://rjlqxxptixupcmhhlhhu.supabase.co";
+const SB_KEY="sb_publishable_BySlN2wYi5n5QFYrGFrYtw_VhlG0TRk"; // publishable key (aman di kode publik; jangan pakai service_role)
+/* ====================================================== */
+let sb=null,user=null,tm=null,stat="";
+const setStat=t=>{stat=t;const e=$("st");if(e)e.textContent=t};
+const lsSet=()=>{try{localStorage.setItem("kbs",JSON.stringify(S))}catch(e){}};
+const save=()=>{lsSet();if(sb&&user){setStat("Menyimpan...");clearTimeout(tm);tm=setTimeout(push,800)}};
+async function push(){
+ if(!sb||!user)return;
+ const{error}=await sb.from("kalkulator_data").upsert({user_id:user.id,data:S,updated_at:new Date().toISOString()});
+ setStat(error?"Gagal simpan: "+error.message:"Tersimpan di Supabase")}
+async function pull(){
+ setStat("Memuat...");
+ const{data,error}=await sb.from("kalkulator_data").select("data").eq("user_id",user.id).maybeSingle();
+ if(error){setStat("Gagal memuat: "+error.message);return}
+ if(data&&data.data&&Object.keys(data.data).length){S=Object.assign({},DEF,data.data);lsSet();setStat("Tersinkron");show(cur)}
+ else await push()}
+function renderAuth(){
+ const a=$("auth");
+ if(!sb){a.innerHTML='<div class="card sub" style="margin-bottom:0">Mode lokal: data hanya tersimpan di peramban ini. Isi <b>SB_URL</b> dan <b>SB_KEY</b> di index.html untuk menyimpan ke Supabase.</div>';return}
+ if(!user){a.innerHTML='<div class="card"><h2>Masuk untuk sinkron ke Supabase</h2><div class="row"><div>Email</div><input type="email" id="em" autocomplete="email"></div><div class="row"><div>Kata sandi</div><input type="password" id="pw" autocomplete="current-password"></div><div style="display:flex;gap:8px;margin-top:10px"><button class="sm" id="li">Masuk</button><button class="sm" id="su">Daftar</button></div><div class="msg" id="st">'+stat+'</div></div>';return}
+ a.innerHTML='<div class="card" style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap"><span class="sub" style="margin:0">'+user.email+' · <span id="st">'+(stat||"Tersinkron")+'</span></span><button class="sm" id="lo">Keluar</button></div>'}
+const FOKUS=["Fondasi listing + kumpulkan 5-10 ulasan berfoto; iklan kecil untuk uji klik dan konversi","Aktifkan Shopee Video dan affiliate; naikkan iklan bila konversi sudah muncul","Scale produk/variasi yang terbukti; pause yang boncos","Stabilkan: bundle, voucher repeat order, andalkan traffic organik"];
+
+function calc(){
+ const k={};k.budget=S.pos[0][1];
+ k.hv=S.harga-S.vou;k.pot=k.hv*S.pot/100;k.aff=k.hv*S.aff/100;
+ k.profit=k.hv-k.pot-k.aff-S.hpp-S.pack;
+ k.margin=k.hv?k.profit/k.hv:0;
+ k.roasI=k.profit>0?k.hv/k.profit:"n/a";
+ k.cpa=Math.max(k.profit,0);
+ k.pv=S.paket-S.vou;
+ k.pp=k.pv-k.pv*S.pot/100-k.pv*S.aff/100-2*S.hpp-S.pack;
+ k.pm=k.pv?k.pp/k.pv:0;
+ k.proasI=k.pp>0?k.pv/k.pp:"n/a";k.pcpa=Math.max(k.pp,0);
+ return k}
+
+function num(key,label,hint,suf){return `<div class="row"><div>${label}<small>${hint||""}</small></div><input type="number" step="any" data-k="${key}" value="${S[key]}"></div>`}
+function out(l,v,c,h){return `<div class="row"><div>${l}${h?`<small>${h}</small>`:""}</div><div class="v ${c||""}">${v}</div></div>`}
+
+function r0(){
+ const k=calc();
+ let sim=[...S.sim];sim.splice(2,0,k.roasI);
+ const rows=sim.map((a,i)=>{const roas=a,om=typeof a==="number"?a*k.budget:0,pcs=k.hv?om/k.hv:0,pr=pcs*k.profit,pa=pr-k.budget,cp=pcs?k.budget/pcs:0;
+  const imp=i===2;
+  return `<tr class="${imp?"hl":""}"><td>${imp?x2(roas)+" (impas)":`<input type="number" step="any" data-s="${i>2?i-1:i}" value="${a}" style="min-width:60px">`}</td><td>${rp(om)}</td><td>${x2(pcs)}</td><td>${rp(pr)}</td><td>${rp(k.budget)}</td><td class="${cl(pa)}">${rp(pa)}</td><td>${rp(cp)}</td></tr>`}).join("");
+ $("p0").innerHTML=`
+ <div class="card"><h2>Input</h2>
+ ${num("harga","Harga jual (Rp)")}${num("hpp","HPP per pcs (Rp)")}${num("pot","Potongan Shopee (%)","Dihitung dari harga setelah voucher (asumsi)")}${num("pack","Biaya packing per pcs (Rp)")}${num("aff","Komisi affiliate (%)","Opsional, isi 5-8% bila via affiliate; 0 = tanpa")}${num("vou","Voucher/diskon toko per pesanan (Rp)","Opsional; 0 = tanpa voucher")}
+ ${out("Total budget iklan (Rp)",rp(k.budget),"","Tautan dari tab Alokasi Budget (ubah di sana)")}
+ ${num("scale","Batas ROAS untuk scale","Di atas angka ini dan stabil 3-4 hari, boleh naikkan budget")}</div>
+ <div class="card"><h2>Hasil per pcs</h2>
+ ${out("Harga setelah voucher",rp(k.hv))}${out("Potongan Shopee",rp(k.pot))}${out("Komisi affiliate",rp(k.aff))}${out("Profit sebelum iklan",rp(k.profit),cl(k.profit))}${out("Margin",pc(k.margin),cl(k.margin))}${out("ROAS impas",x2(k.roasI))}${out("Biaya iklan per pesanan maksimal / CPA impas",rp(k.cpa))}</div>
+ <div class="card"><h2>Simulasi budget iklan</h2><div class="sc"><table><tr><th>ROAS</th><th>Omzet dari iklan</th><th>Perkiraan pesanan</th><th>Profit sebelum iklan</th><th>Biaya iklan</th><th>Profit setelah iklan</th><th>Biaya iklan / pesanan</th></tr>${rows}</table></div></div>
+ <div class="card"><h2>Simulasi paket 2 pcs (bundle)</h2>
+ ${num("paket","Harga paket 2 pcs (Rp)","Packing paket dihitung 1x")}${out("Harga paket setelah voucher",rp(k.pv))}${out("Profit per paket",rp(k.pp),cl(k.pp))}${out("Margin paket",pc(k.pm),cl(k.pm))}${out("ROAS impas paket",x2(k.proasI))}${out("CPA impas paket",rp(k.pcpa))}</div>
+ <div class="card"><h2>Catatan asumsi</h2><ol class="notes"><li>Potongan Shopee dihitung dari harga setelah voucher; cek rincian penghasilan Shopee bila ada biaya lain (mis. program ongkir).</li><li>Simulasi belum memperhitungkan retur/pesanan batal dan COD gagal kirim.</li><li>ROAS di dashboard Shopee bisa terlihat lebih tinggi dari kenyataan (atribusi klik 7 hari, tampilan 1 hari). Bandingkan dengan pesanan aktual.</li><li>Angka ROAS simulasi hanya contoh skenario, bukan prediksi.</li></ol></div>`}
+
+function r1(){
+ const tot=S.pos.reduce((a,p)=>a+p[1],0),sel=S.total-tot,mt=S.mg.reduce((a,b)=>a+b,0),sm=S.pos[0][1]-mt;
+ const m1=sel===0?["OK: alokasi pas dengan budget","pos"]:sel>0?["Masih ada sisa budget yang belum dialokasikan","wn"]:["Alokasi melebihi budget","neg"];
+ const m2=sm===0?["OK: jadwal pas dengan pos iklan","pos"]:sm>0?["Pos iklan masih punya sisa yang belum dijadwalkan","wn"]:["Jadwal melebihi pos iklan","neg"];
+ $("p1").innerHTML=`<div class="card"><h2>Alokasi budget marketing</h2>
+ ${num("total","Total budget marketing (Rp)")}
+ <div class="sc"><table><tr><th>Pos</th><th>Nominal (Rp)</th><th>% dari total</th><th style="text-align:left">Fungsi</th></tr>
+ ${S.pos.map((p,i)=>`<tr><td>${p[0]}</td><td><input type="number" data-p="${i}" value="${p[1]}"></td><td>${pc(S.total?p[1]/S.total:0)}</td><td style="text-align:left;white-space:normal">${p[2]}</td></tr>`).join("")}
+ <tr><td><b>Total</b></td><td><b>${rp(tot)}</b></td><td><b>${pc(S.total?tot/S.total:0)}</b></td><td></td></tr></table></div>
+ <div class="msg ${m1[1]}">Selisih ${rp(sel)} — ${m1[0]}</div></div>
+ <div class="card"><h2>Jadwal budget iklan mingguan</h2><div class="sc"><table><tr><th>Minggu</th><th>Budget iklan</th><th>Per hari</th><th style="text-align:left">Fokus</th></tr>
+ ${S.mg.map((m,i)=>`<tr><td>Minggu ${i+1}</td><td><input type="number" data-m="${i}" value="${m}"></td><td>${rp(m/7)}</td><td style="text-align:left;white-space:normal">${FOKUS[i]}</td></tr>`).join("")}
+ <tr><td><b>Total iklan</b></td><td><b>${rp(mt)}</b></td><td></td><td></td></tr></table></div>
+ <div class="msg ${m2[1]}">Selisih terhadap pos Iklan Shopee ${rp(sm)} — ${m2[0]}</div>
+ <p class="sub">Pembagian dan jadwal adalah usulan awal; ubah sesuai hasil di Tracker Harian.</p></div>`}
+
+function r2(){
+ const k=calc();let tb=0,tc=0,to=0,tp=0;
+ const st=(e)=>e<k.roasI||k.roasI==="n/a"?["PERBAIKI / PAUSE","x"]:e<S.scale?["PERTAHANKAN","p"]:["SCALE","s"];
+ const rows=S.trk.map((r,i)=>{const on=r.b>0;let e="",f="",g="",h="";
+  if(on){tb+=r.b;tc+=r.c;to+=r.o;e=r.o/r.b;f=r.c>0?r.b/r.c:"";g=r.c*k.profit-r.b;tp+=g;const s=st(e);h=`<span class="b ${s[1]}">${s[0]}</span>`}
+  return `<tr><td><input type="date" data-t="${i}.t" value="${r.t}"></td><td><input type="number" data-t="${i}.b" value="${r.b||""}"></td><td><input type="number" data-t="${i}.c" value="${r.c||""}"></td><td><input type="number" data-t="${i}.o" value="${r.o||""}"></td><td>${on?x2(e):""}</td><td>${f!==""?rp(f):""}</td><td class="${on?cl(g):""}">${on?rp(g):""}</td><td>${h}</td></tr>`}).join("");
+ const te=tb>0?to/tb:"",ts=tb>0?st(to/tb):null;
+ $("p2").innerHTML=`<div class="card"><h2>Tracker iklan harian</h2>
+ <div class="sub">ROAS impas: <b>${x2(k.roasI)}</b> · Batas scale: <b>${x2(S.scale)}</b> · Baris pertama adalah contoh; timpa dengan data asli.</div>
+ <div class="sc"><table><tr><th>Tanggal</th><th>Biaya iklan</th><th>Pesanan (pcs)</th><th>Omzet iklan</th><th>ROAS</th><th>Biaya/pesanan</th><th>Profit setelah iklan</th><th>Status</th></tr>${rows}
+ <tr class="hl"><td><b>TOTAL</b></td><td>${rp(tb)}</td><td>${tc}</td><td>${rp(to)}</td><td>${te!==""?x2(te):""}</td><td>${tc>0?rp(tb/tc):""}</td><td class="${cl(tp)}">${rp(tp)}</td><td>${ts?`<span class="b ${ts[1]}">${ts[0]}</span>`:""}</td></tr></table></div>
+ <div class="row" style="margin-top:10px"><div>Sisa budget iklan<small>Pos Iklan Shopee dikurangi total biaya iklan</small></div><div class="v ${cl(S.pos[0][1]-tb)}">${rp(S.pos[0][1]-tb)}</div></div>
+ <p class="sub">Baca keputusan dari TOTAL atau gabungan 3-4 hari terakhir. Profit setelah iklan = pesanan × profit per pcs − biaya iklan; belum termasuk retur.</p>
+ <button class="sm" id="rst">Reset semua data</button></div>`}
+
+const R=[r0,r1,r2];let cur=0;
+function show(i){cur=i;[0,1,2].forEach(j=>$("p"+j).classList.toggle("hide",j!==i));[...$("tabs").children].forEach((b,j)=>b.classList.toggle("on",j===i));R[i]()}
+["Kalkulator","Alokasi Budget","Tracker Harian"].forEach((t,i)=>{const b=document.createElement("button");b.textContent=t;b.onclick=()=>show(i);$("tabs").appendChild(b)});
+
+document.addEventListener("change",e=>{
+ const d=e.target.dataset;if(!d)return;const v=e.target.type==="date"?e.target.value:parseFloat(e.target.value)||0;
+ if(d.k)S[d.k]=v;
+ else if(d.s!==undefined)S.sim[+d.s]=v;
+ else if(d.p!==undefined)S.pos[+d.p][1]=v;
+ else if(d.m!==undefined)S.mg[+d.m]=v;
+ else if(d.t){const[i,f]=d.t.split(".");S.trk[+i][f]=v}
+ else return;
+ save();R[cur]()});
+document.addEventListener("click",e=>{if(e.target.id==="rst"&&confirm("Hapus semua data dan kembali ke contoh awal?")){S=JSON.parse(JSON.stringify(DEF));save();show(cur)}});
+document.addEventListener("click",async e=>{
+ const id=e.target.id;if(!sb||!["li","su","lo"].includes(id))return;
+ if(id==="lo"){await sb.auth.signOut();return}
+ const c={email:$("em").value.trim(),password:$("pw").value};
+ setStat("Memproses...");
+ if(id==="li"){const{error}=await sb.auth.signInWithPassword(c);if(error)setStat(error.message)}
+ else{const{error}=await sb.auth.signUp(c);setStat(error?error.message:"Pendaftaran berhasil. Jika diminta, konfirmasi lewat email lalu klik Masuk.")}
+});
+if(!SB_URL.startsWith("ISI")&&!SB_KEY.startsWith("ISI")&&window.supabase){
+ sb=window.supabase.createClient(SB_URL,SB_KEY);
+ sb.auth.onAuthStateChange((ev,ses)=>{
+  user=ses?ses.user:null;
+  if(ev==="SIGNED_OUT"){S=JSON.parse(JSON.stringify(DEF));try{localStorage.removeItem("kbs")}catch(e){}stat="";show(cur)}
+  renderAuth();
+  if(user)setTimeout(pull,0)});
+}
+renderAuth();
+show(0);
+</script>
+</body>
+</html>
